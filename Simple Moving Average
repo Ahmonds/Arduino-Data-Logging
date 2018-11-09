@@ -1,0 +1,37 @@
+#define nValue 100
+
+int readings[nValue];
+byte readIndex = 0;
+int total = 0;
+int average = 0;
+
+void setup() {
+  while (!Serial) {}
+  Serial.begin(115200);
+
+  for (int thisReading = 0; thisReading < nValue; thisReading++) {
+    readings[thisReading] = 0;
+  }
+}
+
+void SMA () {
+  total -= readings[readIndex];
+  readings[readIndex] = analogRead(A1);;
+  total += readings[readIndex];
+  readIndex += 1;
+
+  if (readIndex >= nValue) {
+    readIndex = 0;
+  }
+
+  average = total / nValue;
+}
+
+void loop() {
+  
+  SMA();    // "Simple Moving Average"
+  
+  Serial.print(average);
+  Serial.print(" , ");
+  Serial.println(analogRead(15));
+}
