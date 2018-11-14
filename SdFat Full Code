@@ -5,16 +5,15 @@
 #define BatteryPin 9
 #define chipSelect 4
 #define TestPin 11
-#define SOFT_MISO_PIN 22
-#define SOFT_MOSI_PIN 23
-#define SOFT_SCK_PIN 24
+#define MISO 22
+#define MOSI 23
+#define SCK 24
 
 #include <SPI.h>
 #include "SdFat.h"
 #include "sdios.h"
 SdFat sd;
 ofstream ThisFile;
-#define error(s) sd.errorHalt(F(s))
 
 #define n 25
 int readings[n];
@@ -41,10 +40,7 @@ void setup() {
   pinMode(TestPin, OUTPUT);
   digitalWrite(rLED, LOW);
 
-  if (!sd.begin(chipSelect, SD_SCK_MHZ(50))) {
-    sd.initErrorHalt();
-    Error();
-  }
+  sd.begin(chipSelect, SD_SCK_MHZ(50))
 
   for (byte InitReading = 0; InitReading < n; InitReading++) {
     readings[InitReading] = 0;
@@ -121,8 +117,8 @@ void loop() {
   BatteryMonitor();
   if (Switch == true) {
     if (micros() - PastMicros >= DelayTime) {
-      ThisFile << analogRead(SensorPin) << ',' << micros() << endl;
       PastMicros = micros();
+      ThisFile << analogRead(SensorPin) << ',' << micros() << endl;
     }
   }
 }
