@@ -24,7 +24,7 @@ int SMA;
 bool Switch = false;
 #define CutOFF 543    //equal to 3.5V on BatteryPin
 #define DelayTime 500   //delay in micros
-uint64_t PastMicros = 0;
+uint32_t PastMicros = 0;
 
 bool ButtonState = false;
 byte ButtonReading;
@@ -117,6 +117,7 @@ void loop() {
   BatteryMonitor();
   if (Switch == true) {
     if (micros() - PastMicros >= DelayTime) {
+      PastMicros = micros();
       ThisFile << analogRead(SensorPin) << ',' << micros() << endl;
     }
   }
