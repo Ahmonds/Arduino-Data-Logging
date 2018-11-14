@@ -1,4 +1,5 @@
 #define nValue 100
+#define SensorPin 15  //A1
 
 int readings[nValue];
 byte readIndex = 0;
@@ -15,23 +16,23 @@ void setup() {
 }
 
 void SMA () {
-  total -= readings[readIndex];
-  readings[readIndex] = analogRead(A1);;
-  total += readings[readIndex];
-  readIndex += 1;
+  total -= readings[readIndex];   //subtract old reading from total
+  readings[readIndex] = analogRead(SensorPin);;   //place new reading into the array
+  total += readings[readIndex];   //add the new reading to the total
+  readIndex += 1;   //move up to the next array position
 
-  if (readIndex >= nValue) {
-    readIndex = 0;
+  if (readIndex >= nValue) {  //once we reach the end of the array
+    readIndex = 0;            //start over form the first position
   }
 
-  average = total / nValue;
+  average = total / nValue;   //take the current average
 }
 
 void loop() {
   
-  SMA();    // "Simple Moving Average"
+  SMA();    // Call to run the "Simple Moving Average" action
   
   Serial.print(average);
   Serial.print(" , ");
-  Serial.println(analogRead(15));
+  Serial.println(analogRead(SensorPin));
 }
