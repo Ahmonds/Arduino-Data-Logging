@@ -1,0 +1,32 @@
+int counter = 0;
+String buffer;
+
+void setup() 
+{
+  Serial.begin(115200);
+}
+
+void loop() 
+{
+  if (Serial.available() > 0)  
+  {
+    char c = Serial.read();
+
+    if (c == '\n')
+    { 
+      buffer += "\n";
+      counter++;
+      if (counter == 10)
+      {
+        Serial.println(buffer);  // now the buffer is full, do something with it.
+        counter = 0;
+        buffer = "";
+      }
+    }
+    else
+    {
+      buffer += c;
+    }
+
+  }
+}
