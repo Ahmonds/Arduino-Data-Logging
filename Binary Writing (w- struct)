@@ -1,0 +1,149 @@
+#include <SdFat.h>
+#include <SdFatConfig.h>
+#include <sdios.h>
+#include <SPI.h>
+
+SdFat sd;
+SdBaseFile ThisFile;
+
+#define ButtonPin 16
+#define SensorPin 15
+#define gLED 8
+#define rLED 13
+#define BatteryPin 9
+#define chipSelect 4
+#define TestPin 11
+#define MISO 22
+#define MOSI 23
+#define SCK 24
+
+#define n 25
+int readings[n];
+byte readIndex = 0;
+int total;
+int SMA;
+
+bool Switch = false;
+#define CutOFF 543    //equal to 3.5V on BatteryPin
+#define DelayTime 500   //delay in micros
+uint64_t PastMicros = 0;
+
+bool ButtonState = false;
+byte ButtonReading;
+uint32_t PrevBounceMillis = 0;
+
+struct DataStore {
+  int Sensor1;
+  uint32_t Micros;
+};
+struct DataStore InData;
+
+void setup() {
+  pinMode(chipSelect, OUTPUT);
+  digitalWrite(chipSelect, HIGH);
+  pinMode(ButtonPin, INPUT);
+  pinMode(SensorPin, INPUT);
+  pinMode(BatteryPin, INPUT);
+  pinMode(rLED, OUTPUT);
+  pinMode(gLED, OUTPUT);
+  pinMode(TestPin, OUTPUT);
+  digitalWrite(rLED, LOW);
+
+  sd.begin(chipSelect, SD_SCK_MHZ(50));
+
+  for (byte InitReading = 0; InitReading < n; InitReading++) {
+    readings[InitReading] = 0;
+  }
+}
+
+void BatteryMonitor() {
+  total -= readings[readIndex];
+  readings[readIndex] = analogRead(BatteryPin);
+  total += readings[readIndex];
+  readIndex += 1;
+  if (readIndex >= n) {
+    readIndex = 0;
+  }
+  SMA = total / n;
+}
+
+void Debounce() {
+  ButtonReading = digitalRead(ButtonPin);
+  if (ButtonState == false) {
+    if (ButtonReading == ButtonState) {
+      PrevBounceMillis = millis();
+    }
+    if (millis() - PrevBounceMillis > 100) {
+      ButtonState = true;
+    }
+  }
+  if (ButtonState == true) {
+    if (ButtonReading == ButtonState) {
+      PrevBounceMillis = millis();
+    }
+    if (millis() - PrevBounceMillis > 100) {
+      ButtonState = false;
+      Open_or_Close();
+    }
+  }
+}
+
+void Open_or_Close () {
+  if (Switch == false) {
+    digitalWrite(gLED, HIGH);
+    char DataFile[10];
+    strcpy(DataFile, "file00.txt");
+    for (byte i = 0; i < 100; i++) {
+      DataFile[4] = '0' + i / 10;
+      DataFile[5] = '0' + i % 10;
+      if (! sd.exists(DataFile)) {
+        break;
+      }
+    }
+    ThisFile.open(DataFile, O_CREAT | O_WRONLY | O_APPEND);
+    if (!sd.open(DataFile)) {
+      ThisFile.close();
+      Error();
+      return;
+    }
+    Switch = true;
+    delay(500);
+    digitalWrite(gLED, LOW);
+    return;
+  }
+  else {
+    digitalWrite(rLED, HIGH);
+    ThisFile.close();
+    Switch = false;
+    delay(500);
+    digitalWrite(rLED, LOW);
+    return;
+  }
+}
+
+void loop() {
+
+  Debounce();
+  BatteryMonitor();
+
+  if (Switch == true) {
+    if (micros() - PastMicros >= DelayTime) {
+      PastMicros = micros();
+      InData.Sensor1 = analogRead(SensorPin);
+      InData.Micros = micros();
+      ThisFile.write((const byte *)&InData, sizeof(InData));
+      ThisFile.sync();
+    }
+  }
+}
+
+void Error() {
+  digitalWrite(rLED, HIGH);
+  delayMicroseconds(100000);
+  digitalWrite(gLED, HIGH);
+  delayMicroseconds(100000);
+  digitalWrite(rLED, LOW);
+  delayMicroseconds(100000);
+  digitalWrite(gLED, LOW);
+  delayMicroseconds(100000);
+}
