@@ -1,6 +1,5 @@
 #include <SdFat.h>
 #include <SdFatConfig.h>
-#include <sdios.h>
 #include <SPI.h>
 
 SdFat sd;
@@ -26,21 +25,21 @@ int SMA;
 bool Switch = false;
 #define CutOFF 543    //equal to 3.5V on BatteryPin
 #define DelayTime 500   //delay in micros
-uint64_t PastMicros = 0;
+uint32_t PastMicros = 0;
 
 bool ButtonState = false;
 byte ButtonReading;
 uint32_t PrevBounceMillis = 0;
 
-struct DataStore {
+struct DataStruct {
   int Sensor1;
-  uint32_t Micros;
+  float PinAverage;
+  uint32_t Timing;
 };
-struct DataStore InData;
+struct DataStruct InData;
 
 void setup() {
   pinMode(chipSelect, OUTPUT);
-  digitalWrite(chipSelect, HIGH);
   pinMode(ButtonPin, INPUT);
   pinMode(SensorPin, INPUT);
   pinMode(BatteryPin, INPUT);
@@ -56,9 +55,9 @@ void setup() {
   }
 }
 
-void BatteryMonitor() {
+void MovingAverage() {
   total -= readings[readIndex];
-  readings[readIndex] = analogRead(BatteryPin);
+  readings[readIndex] = analogRead(SensorPin);
   total += readings[readIndex];
   readIndex += 1;
   if (readIndex >= n) {
@@ -122,17 +121,16 @@ void Open_or_Close () {
 }
 
 void loop() {
-
+  MovingAverage();
   Debounce();
-  BatteryMonitor();
 
   if (Switch == true) {
     if (micros() - PastMicros >= DelayTime) {
       PastMicros = micros();
       InData.Sensor1 = analogRead(SensorPin);
-      InData.Micros = micros();
-      ThisFile.write((const byte *)&InData, sizeof(InData));
-      ThisFile.sync();
+      InData.PinAverage = SMA;
+      InData.Timing = micros();
+      ThisFile.write((uint8_t *)&InData, sizeof(InData));
     }
   }
 }
