@@ -1,3 +1,8 @@
+#include <SPI.h>
+#include "SdFat.h"
+SdFat sd;
+ofstream ThisFile;
+
 #define ButtonPin 16
 #define SensorPin 15
 #define gLED 8
@@ -9,23 +14,18 @@
 #define MOSI 23
 #define SCK 24
 
-#include <SPI.h>
-#include "SdFat.h"
-#include "sdios.h"
-SdFat sd;
-ofstream ThisFile;
-
 #define n 25
 int readings[n];
 byte readIndex = 0;
 int total;
 int SMA;
 
+#define CutOFF   543    //equal to 3.5V on BatteryPin
 bool Switch = false;
-#define CutOFF 543    //equal to 3.5V on BatteryPin
-#define DelayTime 500   //delay in micros
-uint32_t PastMicros = 0;
+#define DelayTime  500  //delay in micros
+uint64_t PastMicros = 0;
 
+#define DebounceDelay 100
 bool ButtonState = false;
 byte ButtonReading;
 uint32_t PrevBounceMillis = 0;
@@ -40,7 +40,7 @@ void setup() {
   pinMode(TestPin, OUTPUT);
   digitalWrite(rLED, LOW);
 
-  sd.begin(chipSelect, SD_SCK_MHZ(50))
+  sd.begin(chipSelect, SD_SCK_MHZ(50));
 
   for (byte InitReading = 0; InitReading < n; InitReading++) {
     readings[InitReading] = 0;
@@ -49,11 +49,11 @@ void setup() {
 
 void Debounce() {
   ButtonReading = digitalRead(ButtonPin);
-  if (ButtonState == false) {
+  if (ButtonState == false && SMA > CutOFF) {
     if (ButtonReading == ButtonState) {
       PrevBounceMillis = millis();
     }
-    if (millis() - PrevBounceMillis > 100) {
+    if (millis() - PrevBounceMillis > DebounceDelay) {
       ButtonState = true;
     }
   }
@@ -61,7 +61,7 @@ void Debounce() {
     if (ButtonReading == ButtonState) {
       PrevBounceMillis = millis();
     }
-    if (millis() - PrevBounceMillis > 100) {
+    if (millis() - PrevBounceMillis > DebounceDelay) {
       ButtonState = false;
       Open_or_Close();
     }
@@ -113,8 +113,21 @@ void BatteryMonitor() {
 }
 
 void loop() {
-  Debounce();
   BatteryMonitor();
+  if (SMA < CutOFF) {
+    if (Switch == true) {
+      digitalWrite(rLED, HIGH);
+      Switch = false;
+      ThisFile.close();
+      delayMicroseconds(500000);
+      digitalWrite(rLED, LOW);
+    }
+    else {
+      return;
+    }
+  }
+  Debounce();
+
   if (Switch == true) {
     if (micros() - PastMicros >= DelayTime) {
       PastMicros = micros();
