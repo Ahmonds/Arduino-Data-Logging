@@ -10,13 +10,13 @@ SdBaseFile ThisFile;
 #define gLED 8
 #define rLED 13
 #define BatteryPin 9
-#define chipSelect 4
+#define SD_CS 4
 #define TestPin 11
 #define MISO 22
 #define MOSI 23
 #define SCK 24
 
-#define n 25
+#define n 30
 int readings[n];
 byte readIndex = 0;
 int total;
@@ -27,19 +27,18 @@ bool Switch = false;
 #define DelayTime 500   //delay in micros
 uint32_t PastMicros = 0;
 
+#define DebounceDelay 100  //milliseconds required for constant reading
 bool ButtonState = false;
 byte ButtonReading;
 uint32_t PrevBounceMillis = 0;
 
 struct DataStruct {
   int Sensor1;
-  float PinAverage;
   uint32_t Timing;
 };
 struct DataStruct InData;
 
 void setup() {
-  pinMode(chipSelect, OUTPUT);
   pinMode(ButtonPin, INPUT);
   pinMode(SensorPin, INPUT);
   pinMode(BatteryPin, INPUT);
@@ -48,7 +47,10 @@ void setup() {
   pinMode(TestPin, OUTPUT);
   digitalWrite(rLED, LOW);
 
-  sd.begin(chipSelect, SD_SCK_MHZ(50));
+  sd.begin(SD_CS);
+  SDCARD_SPI.beginTransaction(SPISettings (48000000, MSBFIRST, SPI_MODE0));
+  digitalWrite(SD_CS, HIGH);
+  pinMode(SD_CS, OUTPUT);
 
   for (byte InitReading = 0; InitReading < n; InitReading++) {
     readings[InitReading] = 0;
@@ -72,7 +74,7 @@ void Debounce() {
     if (ButtonReading == ButtonState) {
       PrevBounceMillis = millis();
     }
-    if (millis() - PrevBounceMillis > 100) {
+    if (millis() - PrevBounceMillis > DebounceDelay) {
       ButtonState = true;
     }
   }
@@ -80,7 +82,7 @@ void Debounce() {
     if (ButtonReading == ButtonState) {
       PrevBounceMillis = millis();
     }
-    if (millis() - PrevBounceMillis > 100) {
+    if (millis() - PrevBounceMillis > DebounceDelay) {
       ButtonState = false;
       Open_or_Close();
     }
@@ -121,14 +123,13 @@ void Open_or_Close () {
 }
 
 void loop() {
-  MovingAverage();
+  //MovingAverage();
   Debounce();
 
   if (Switch == true) {
     if (micros() - PastMicros >= DelayTime) {
       PastMicros = micros();
       InData.Sensor1 = analogRead(SensorPin);
-      InData.PinAverage = SMA;
       InData.Timing = micros();
       ThisFile.write((uint8_t *)&InData, sizeof(InData));
     }
