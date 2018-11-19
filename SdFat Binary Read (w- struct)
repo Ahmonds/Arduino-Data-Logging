@@ -4,7 +4,7 @@
 SdFat sd;
 SdFile ThisFile;
 
-#define chipSelect 4
+#define SD_CS 4
 #define SensorPin 15
 #define ButtonPin 16
 #define gLED 8
@@ -16,16 +16,16 @@ byte readIndex = 0;
 int total;
 int SMA;
 
+#define DebounceDelay 100  //milliseconds required for constant reading
 bool Switch = false;
 bool ButtonState = false;
 byte ButtonReading;
 uint32_t PrevBounceMillis = 0;
 
-char DataFile[] = "file00.txt";
+char DataFile[] = "file06.txt";
 
 struct DataStruct {
   int Sensor1;
-  float PinAverage;
   uint32_t Timing;
 };
 struct DataStruct InData;
@@ -40,14 +40,16 @@ void setup() {
   Serial.println(" to serial monitor.");
   Serial.println("Or press '0' to delete file00.txt");
   Serial.println("(you must stop reading to delete the file)");
-  pinMode(chipSelect, OUTPUT);
   pinMode(ButtonPin, INPUT);
   pinMode(SensorPin, INPUT);
   pinMode(rLED, OUTPUT);
   digitalWrite(rLED, LOW);
   pinMode(gLED, OUTPUT);
 
-  sd.begin(chipSelect, SD_SCK_MHZ(50));
+  sd.begin(SD_CS);
+  SDCARD_SPI.beginTransaction(SPISettings(48000000, MSBFIRST, SPI_MODE0));
+  digitalWrite(SD_CS, HIGH);
+  pinMode(SD_CS, OUTPUT);
 }
 
 void Debounce() {
@@ -56,7 +58,7 @@ void Debounce() {
     if (ButtonReading == ButtonState) {
       PrevBounceMillis = millis();
     }
-    if (millis() - PrevBounceMillis > 100) {
+    if (millis() - PrevBounceMillis > DebounceDelay) {
       ButtonState = true;
     }
   }
@@ -64,7 +66,7 @@ void Debounce() {
     if (ButtonReading == ButtonState) {
       PrevBounceMillis = millis();
     }
-    if (millis() - PrevBounceMillis > 100) {
+    if (millis() - PrevBounceMillis > DebounceDelay) {
       ButtonState = false;
       rOpen_or_Close();
     }
@@ -95,29 +97,14 @@ void rOpen_or_Close () {
   }
 }
 
-void MovingAverage() {
-  total -= readings[readIndex];
-  readings[readIndex] = analogRead(SensorPin);
-  total += readings[readIndex];
-  readIndex += 1;
-  if (readIndex >= n) {
-    readIndex = 0;
-  }
-  SMA = total / n;
-}
-
 void loop() {
-  MovingAverage();
   Debounce();
 
   if (Switch == true) {
     if (ThisFile.available()) {
       ThisFile.read((byte *)&InData, sizeof(InData));
       analogWrite(gLED, map(InData.Sensor1, 0 , 1023, 0, 255));
-      analogWrite(rLED, map(InData.PinAverage, 0 , 1023, 0 , 255));
       Serial.print(InData.Sensor1);
-      Serial.print(", ");
-      Serial.print(InData.PinAverage);
       Serial.print(", ");
       Serial.println(InData.Timing);
       return;
@@ -135,18 +122,9 @@ void loop() {
 void Error() {
   digitalWrite(rLED, HIGH);
   delayMicroseconds(100000);
-  digitalWrite(gLED, HIGH);
-  delayMicroseconds(100000);
   digitalWrite(rLED, LOW);
-  delayMicroseconds(100000);
-  digitalWrite(gLED, LOW);
   delayMicroseconds(100000);
   digitalWrite(rLED, HIGH);
   delayMicroseconds(100000);
-  digitalWrite(gLED, HIGH);
-  delayMicroseconds(100000);
   digitalWrite(rLED, LOW);
-  delayMicroseconds(100000);
-  digitalWrite(gLED, LOW);
-  delayMicroseconds(100000);
 }
