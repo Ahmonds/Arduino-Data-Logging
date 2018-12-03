@@ -51,7 +51,7 @@ void setup() {
 
 void Debounce() {
   ButtonReading = digitalRead(ButtonPin);
-  if (ButtonState == false && SMA > CutOFF) {
+  if (!ButtonState) {
     if (ButtonReading == ButtonState) {
       PrevBounceMillis = millis();
     }
@@ -59,7 +59,7 @@ void Debounce() {
       ButtonState = true;
     }
   }
-  if (ButtonState == true) {
+  if (ButtonState) {
     if (ButtonReading == ButtonState) {
       PrevBounceMillis = millis();
     }
@@ -71,7 +71,7 @@ void Debounce() {
 }
 
 void Open_or_Close () {
-  if (Switch == false) {
+  if (!Switch) {
     digitalWrite(gLED, HIGH);
     char DataFile[10];
     strcpy(DataFile, "file00.txt");
@@ -117,7 +117,7 @@ void BatteryMonitor() {
 void loop() {
   BatteryMonitor();
   if (SMA < CutOFF) {
-    if (Switch == true) {
+    if (Switch) {
       digitalWrite(rLED, HIGH);
       Switch = false;
       ThisFile.close();
@@ -130,7 +130,7 @@ void loop() {
   }
   Debounce();
 
-  if (Switch == true) {
+  if (Switch) {
     if (micros() - PastMicros >= DelayTime) {
       PastMicros = micros();
       ThisFile << analogRead(SensorPin) << ',' << micros() << endl;
@@ -140,11 +140,10 @@ void loop() {
 
 void Error() {
   digitalWrite(rLED, HIGH);
-  delayMicroseconds(100000);
-  digitalWrite(gLED, HIGH);
-  delayMicroseconds(100000);
+  delayMicroseconds(200000);
   digitalWrite(rLED, LOW);
-  delayMicroseconds(100000);
-  digitalWrite(gLED, LOW);
-  delayMicroseconds(100000);
+  delayMicroseconds(200000);
+  digitalWrite(rLED, HIGH);
+  delayMicroseconds(200000);
+  digitalWrite(rLED, LOW);
 }
