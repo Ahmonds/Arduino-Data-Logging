@@ -14,20 +14,20 @@ ofstream ThisFile;
 #define SCK 24
 #define TestPin 11
 
-#define n 25
+#define n  40
 int readings[n];
-byte readIndex = 0;
-int total;
-int SMA;
+byte Pos = 0;
+float total = 0;
+float SMA = 0;
 
-#define CutOFF   543    //equal to 3.5V on BatteryPin (3.3 ref)
+#define CutOFF   543    //equal to 3.5V on BatteryPin (3V3 ref)
 bool Switch = false;
-#define DelayTime  1000  //delay in micros
+#define DelayTime  980  //delay in micros
 uint32_t PastMicros = 0;
 
-#define DebounceDelay 100
+#define dbDelay 100
 bool ButtonState = false;
-byte ButtonReading;
+byte ButtonReading = LOW;
 uint32_t PrevBounceMillis = 0;
 
 void setup() {
@@ -40,7 +40,7 @@ void setup() {
   digitalWrite(rLED, LOW);
 
   sd.begin(SD_CS);
-  SDCARD_SPI.beginTransaction(SPISettings(48000000, MSBFIRST, SPI_MODE0));
+  SDCARD_SPI.beginTransaction(SPISettings(48000000, LSBFIRST, SPI_MODE0));
   digitalWrite(SD_CS, HIGH);
   pinMode(SD_CS, OUTPUT);
 
@@ -49,21 +49,37 @@ void setup() {
   }
 }
 
+void BatteryMonitor() {
+  total -= readings[Pos];
+  readings[Pos] = analogRead(BatteryPin);
+  total += readings[Pos];
+  Pos++;
+  if (Pos >= n) Pos = 0;
+  SMA = total / n;
+}
+
+void Error() {
+  digitalWrite(rLED, HIGH);
+  delayMicroseconds(200000);
+  digitalWrite(rLED, LOW);
+  delayMicroseconds(200000);
+  digitalWrite(rLED, HIGH);
+  delayMicroseconds(200000);
+  digitalWrite(rLED, LOW);
+}
+
 void Debounce() {
-  ButtonReading = digitalRead(ButtonPin);
+
   if (!ButtonState) {
-    if (ButtonReading == ButtonState) {
-      PrevBounceMillis = millis();
-    }
-    if (millis() - PrevBounceMillis > DebounceDelay) {
-      ButtonState = true;
-    }
+    ButtonReading = digitalRead(ButtonPin);
+    if (ButtonReading == ButtonState) PrevBounceMillis = millis();
+    if (millis() - PrevBounceMillis > dbDelay) ButtonState = true;
   }
+
   if (ButtonState) {
-    if (ButtonReading == ButtonState) {
-      PrevBounceMillis = millis();
-    }
-    if (millis() - PrevBounceMillis > DebounceDelay) {
+    ButtonReading = digitalRead(ButtonPin);
+    if (ButtonReading == ButtonState) PrevBounceMillis = millis();
+    if (millis() - PrevBounceMillis > dbDelay) {
       ButtonState = false;
       Open_or_Close();
     }
@@ -71,6 +87,7 @@ void Debounce() {
 }
 
 void Open_or_Close () {
+
   if (!Switch) {
     digitalWrite(gLED, HIGH);
     char DataFile[10];
@@ -78,9 +95,7 @@ void Open_or_Close () {
     for (byte i = 0; i < 100; i++) {
       DataFile[4] = '0' + i / 10;
       DataFile[5] = '0' + i % 10;
-      if (! sd.exists(DataFile)) {
-        break;
-      }
+      if (!sd.exists(DataFile)) break;
     }
     ThisFile.open(DataFile, O_CREAT | O_APPEND | O_WRITE);
     if (!ThisFile.is_open()) {
@@ -93,6 +108,7 @@ void Open_or_Close () {
     digitalWrite(gLED, LOW);
     return;
   }
+
   else {
     digitalWrite(rLED, HIGH);
     ThisFile.close();
@@ -103,47 +119,26 @@ void Open_or_Close () {
   }
 }
 
-void BatteryMonitor() {
-  total -= readings[readIndex];
-  readings[readIndex] = analogRead(BatteryPin);
-  total += readings[readIndex];
-  readIndex += 1;
-  if (readIndex >= n) {
-    readIndex = 0;
-  }
-  SMA = total / n;
-}
-
 void loop() {
   BatteryMonitor();
+
   if (SMA < CutOFF) {
     if (Switch) {
-      digitalWrite(rLED, HIGH);
-      Switch = false;
-      ThisFile.close();
-      delayMicroseconds(500000);
-      digitalWrite(rLED, LOW);
-    }
-    else {
+      Open_or_Close();
+      Error();
       return;
     }
+    else return;
   }
+
   Debounce();
 
   if (Switch) {
     if (micros() - PastMicros >= DelayTime) {
       PastMicros = micros();
-      ThisFile << analogRead(SensorPin) << ',' << micros() << endl;
+      digitalWrite(TestPin, HIGH);
+      ThisFile/* << analogRead(SensorPin) << ',' */ << micros() << endl;
+      digitalWrite(TestPin, LOW);
     }
   }
-}
-
-void Error() {
-  digitalWrite(rLED, HIGH);
-  delayMicroseconds(200000);
-  digitalWrite(rLED, LOW);
-  delayMicroseconds(200000);
-  digitalWrite(rLED, HIGH);
-  delayMicroseconds(200000);
-  digitalWrite(rLED, LOW);
 }
