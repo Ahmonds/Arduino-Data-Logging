@@ -22,7 +22,7 @@ float SMA = 0;
 
 #define CutOFF   543    //equal to 3.5V on BatteryPin (3V3 ref)
 bool Switch = false;
-#define DelayTime  980  //delay in micros
+#define DelayTime  1000  //delay in micros
 uint32_t PastMicros = 0;
 
 #define dbDelay 100
@@ -40,7 +40,7 @@ void setup() {
   digitalWrite(rLED, LOW);
 
   sd.begin(SD_CS);
-  SDCARD_SPI.beginTransaction(SPISettings(48000000, LSBFIRST, SPI_MODE0));
+  SDCARD_SPI.beginTransaction(SPISettings(48000000, MSBFIRST, SPI_MODE0));
   digitalWrite(SD_CS, HIGH);
   pinMode(SD_CS, OUTPUT);
 
