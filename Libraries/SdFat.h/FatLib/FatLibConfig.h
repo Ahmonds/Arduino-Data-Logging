@@ -55,7 +55,7 @@
  *
  */
 #ifndef USE_LONG_FILE_NAMES
-#define USE_LONG_FILE_NAMES 1
+#define USE_LONG_FILE_NAMES 0
 #endif  // USE_LONG_FILE_NAMES
 //------------------------------------------------------------------------------
 /**
