@@ -117,7 +117,7 @@ void Open_or_Close () {
       return;
     }
     Switch = true;
-    delayMicroseconds(200000);
+    delayMicroseconds(300000);
     digitalWrite(gLED, LOW);
     return;
   }
@@ -126,7 +126,7 @@ void Open_or_Close () {
     digitalWrite(rLED, HIGH);
     ThisFile.close();
     Switch = false;
-    delayMicroseconds(200000);
+    delayMicroseconds(300000);
     digitalWrite(rLED, LOW);
     return;
   }
