@@ -8,12 +8,12 @@
       **Faster SPI**
 */
 
-#include "SdFat.h"        //Add SdFat library, SPI, and set Out Stream
+#include "SdFat.h"          //Add SdFat library, SPI, and set Out Stream
 #include <SPI.h>
 SdFat sd;
 ofstream ThisFile;
 
-#define ButtonPin 16       //Set pin numbers
+#define ButtonPin 16        //Set pin numbers
 #define SensorPin 15
 #define gLED 8
 #define rLED 13
@@ -22,22 +22,120 @@ ofstream ThisFile;
 #define MOSI 23
 #define SCK 24
 #define SD_CS 4
+#define CardDetect 7
 
-#define n 40               //n samples to average
-int readings[n];           //create moving average buffer
+#define n 40                //n samples to average
+int readings[n];            //create moving average buffer
 byte Pos = 0;
 float total = 0;
 float SMA = 0;
 
-#define CutOFF 2153         //3.5V on BatteryPin w/ 3.3V reference && 12bit resolution /
+#define A_RES 12            //Set the ADC's resolution
+
+#if A_RES == 10
+#define CutOFF 543          //3V5 on BatteryPin w/ 3V3 reference && 10bit res
+#elif A_RES == 12
+#define CutOFF 2153         //3V5 on BatteryPin w/ 3V3 reference && 12bit res
+#endif
+
 bool Switch = false;        //Set varaibles and constans for logging
 #define DelayTime 1000      //Time between readings in microseconds (+ a few uS for run time)
 uint32_t PastMicros = 0;
 
-bool ButtonState = false;  //Set varaibles for debounce
+bool ButtonState = false;   //Set varaibles for debounce
 byte ButtonReading = LOW;
 uint32_t PrevBounceMillis = 0;
-#define dbDelay 100          //Constant reading for this many milliseconds to debounce
+#define dbDelay 150          //Constant reading for this many milliseconds to debounce
+
+//==================================================================================================================
+
+void Debounce() {           //Debounce action
+
+  if (!ButtonState) {                            //If we are in the low state and the Battery is charged,
+    ButtonReading = digitalRead(ButtonPin);      //hold button reading
+    if (ButtonReading == ButtonState) {          //Check and wait for the button to go high,
+      PrevBounceMillis = millis();               //If the button goes high, save that time...
+    }
+    if (millis() - PrevBounceMillis > dbDelay) { //Once the reading has consistantly been high for 100 mS,
+      ButtonState = true;                        //set the state to true
+    }
+  }
+
+  if (ButtonState) {                         //If we are currently in the high state (the button is pressed),
+    ButtonReading = digitalRead(ButtonPin);  //hold button reading
+    if (ButtonReading == ButtonState) {      //Check and wait for the button to go low,
+      PrevBounceMillis = millis();           //If the button goes low, save that time...
+    }
+    if (millis() - PrevBounceMillis > dbDelay) { //Once the reading has consistantly been low for 100 mS,
+      ButtonState = false;                       //set the state back to false,
+      Open_or_Close();                           //and either open or close a file...
+    }
+  }
+}
+
+//==================================================================================================================
+
+void Open_or_Close () {     //Open or Close file action
+  if (!Switch) {                                              //If the Switch was off (data was not logging)-
+    if (!digitalRead(CardDetect)) {                           //If there is no card inserted-
+      Error();                                                //-blink rLED twice
+      return;                                                 //and return from function...
+    }
+    
+    digitalWrite(gLED, HIGH);
+    //Initalize SD card and SPI
+    sd.begin(SD_CS);
+    SDCARD_SPI.beginTransaction(SPISettings(48000000, MSBFIRST, SPI_MODE0));
+    pinMode(SD_CS, OUTPUT);
+    digitalWrite(SD_CS, HIGH);
+
+    char DataFile[10];
+    strcpy(DataFile, "file00.TXT");                           //Create a new File##
+    for (byte i = 0; i < 100; i++) {
+      DataFile[4] = '0' + i / 10;
+      DataFile[5] = '0' + i % 10;
+      if (!sd.exists(DataFile)) break;
+    }
+    ThisFile.open(DataFile, O_WRITE | O_APPEND | O_CREAT);    //Create and open that File## for writing
+    if (!ThisFile.is_open()) {
+      ThisFile.close();
+      Switch = false;
+      Error();
+    }
+    Switch = true;                                            //Turn Switch on
+    delayMicroseconds(300000);
+    digitalWrite(gLED, LOW);
+  }
+  else {                                                      //If the switch was already on (data has been logging)
+    digitalWrite(rLED, HIGH);
+    ThisFile.close();                                         //Stop logging and the close the open File##
+    Switch = false;                                           //Turn Switch off
+    delayMicroseconds(300000);
+    digitalWrite(rLED, LOW);                                  //Blink red LED once
+  }
+}
+
+//==================================================================================================================
+
+void BatteryMonitor() {     //Battery Monitoring action (Simple Moving Average)
+  total -= readings[Pos];                         //Subtract the old reading from the total
+  readings[Pos] = analogRead(BatteryPin);         //Add new reading in place of old reading
+  total += readings[Pos];                         //Sum the new reading into the total
+  (Pos < n ? Pos++ : Pos = 0);                    //Loop to beging at end of buffer
+  SMA = total / n;                                //Divide the sum by the amount summed (average)
+}
+
+//==================================================================================================================
+
+void Error() {              //Simple Error (Blink Red LED twice)
+  digitalWrite(rLED, HIGH);
+  delayMicroseconds(200000);
+  digitalWrite(rLED, LOW);
+  delayMicroseconds(200000);
+  digitalWrite(rLED, HIGH);
+  delayMicroseconds(200000);
+  digitalWrite(rLED, LOW);
+}
 
 //==================================================================================================================
 
@@ -54,93 +152,21 @@ void setup() {              //Setup
   pinMode(20 , OUTPUT);
   pinMode(11, OUTPUT);
 
-  pinMode(ButtonPin, INPUT);                                                  //Set pins as out/input
+  pinMode(CardDetect, INPUT_PULLUP);
+  pinMode(ButtonPin, INPUT);                                                 //Set pins as out/input
   pinMode(SensorPin, INPUT);
   pinMode(BatteryPin, INPUT);
   pinMode(gLED, OUTPUT);
   pinMode(rLED, OUTPUT);
   digitalWrite(rLED, LOW);
-  analogReadResolution(12);   //12 bit ADC resolution
-  analogReference(AR_DEFAULT);    //The default reference is the boards operating voltage (3V3)
+  analogReadResolution(A_RES);      //Set bit ADC resolution
+  analogReference(AR_DEFAULT);      //The default reference is the boards operating voltage (3V3)
   analogRead(SensorPin);
-
-  sd.begin(SD_CS);                                                           //Initialize SD card
-  SDCARD_SPI.beginTransaction(SPISettings(48000000, MSBFIRST, SPI_MODE0));   //Begin SPI manually
-  pinMode(SD_CS, OUTPUT);                                                    //Begin SPI manually
-  digitalWrite(SD_CS, HIGH);                                                 //Begin SPI manually
+  analogRead(BatteryPin);
 
   for (byte InitReading = 0; InitReading < n; InitReading++) {               //Create initial buffer for SMA
     readings[InitReading] = 0;
   }
-}
-
-//==================================================================================================================
-
-void Debounce() {           //Debounce action
-
-  if (!ButtonState) {                            //If we are in the low state and the Battery is charged,
-    ButtonReading = digitalRead(ButtonPin);      //hold button reading
-    if (ButtonReading == ButtonState) {          //Check and wait for the button to go high,
-      PrevBounceMillis = millis();               //If the button goes high, save that time...
-    }
-    if (millis() - PrevBounceMillis > dbDelay) { //Once the reading has consistantly been high for 100 mS,
-      ButtonState = true;                        //set the state to true
-    }
-  }
-
-  if (ButtonState) {                         //If we are currently in the high state (the button has been pressed),
-    ButtonReading = digitalRead(ButtonPin);  //hold button reading
-    if (ButtonReading == ButtonState) {      //Check and wait for the button to go low,
-      PrevBounceMillis = millis();           //If the button goes low, save that time...
-    }
-    if (millis() - PrevBounceMillis > dbDelay) { //Once the reading has consistantly been low for 100 mS,
-      ButtonState = false;                       //set the state back to false,
-      Open_or_Close();                           //and either open or close a file...
-    }
-  }
-}
-
-//==================================================================================================================
-
-void Open_or_Close () {     //Open or Close file action
-  if (!Switch) {                                              //If the Switch was off (data was not logging)
-    digitalWrite(gLED, HIGH);
-    char DataFile[10];
-    strcpy(DataFile, "File00.TXT");                           //Create a new File##
-    for (byte i = 0; i < 100; i++) {
-      DataFile[4] = '0' + i / 10;
-      DataFile[5] = '0' + i % 10;
-      if (! sd.exists(DataFile)) break;
-    }
-    ThisFile.open(DataFile, O_WRITE | O_APPEND | O_CREAT);    //Create and open that File## for writing
-    if (!ThisFile.is_open()) {
-      ThisFile.close();
-      Switch = false;
-      Error();
-    }
-    Switch = true;                                            //Turn Switch on
-    delayMicroseconds(300000);
-    digitalWrite(gLED, LOW);                                  //Blink Green LED once
-    return;
-  }
-  else {                                                      //If the switch was already on (data has been logging)
-    digitalWrite(rLED, HIGH);
-    ThisFile.close();                                         //Stop logging and the close the open File##
-    Switch = false;                                           //Turn Switch off
-    delayMicroseconds(300000);
-    digitalWrite(rLED, LOW);                                  //Blink red LED once
-    return;
-  }
-}
-
-//==================================================================================================================
-
-void BatteryMonitor() {     //Battery Monitoring action (Simple Moving Average)
-  total -= readings[Pos];                         //Subtract the old reading from the total
-  readings[Pos] = analogRead(BatteryPin);         //Add new reading in place of old reading
-  total += readings[Pos];                         //Sum the new reading into the total
-  (Pos < n ? Pos++ : Pos = 0);                    //Loop to beging at end of buffer
-  SMA = total / n;                                //Divide the sum by the amount summed (average)
 }
 
 //==================================================================================================================
@@ -163,21 +189,9 @@ void loop() {               //Main Loop
     if (micros() - PastMicros >= DelayTime) {
       //If the Switch is on and the time interval has been met, log a data entry below...
       PastMicros = micros();
-      ThisFile << analogRead(SensorPin) << ',' << micros() << '\n';
+      ThisFile  << micros() << ',' << analogRead(SensorPin) << '\n';
     }
   }
-}
-
-//==================================================================================================================
-
-void Error() {              //Simple Error (Blink Red LED twice)
-  digitalWrite(rLED, HIGH);
-  delayMicroseconds(200000);
-  digitalWrite(rLED, LOW);
-  delayMicroseconds(200000);
-  digitalWrite(rLED, HIGH);
-  delayMicroseconds(200000);
-  digitalWrite(rLED, LOW);
 }
 
 //==================================================================================================================
