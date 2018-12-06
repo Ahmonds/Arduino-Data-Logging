@@ -13,73 +13,30 @@ ofstream ThisFile;
 #define MOSI 23
 #define SCK 24
 #define TestPin 11
+#define CardDetect 7
 
-#define n  40
+#define n  50
 int readings[n];
 byte Pos = 0;
 float total = 0;
 float SMA = 0;
 
-#define CutOFF   2153    //equal to 3.5V on BatteryPin (3V3 ref, 12bit res)
+#define A_RES 12
+
+#if A_RES == 10
+#define CutOFF 543    //3V5 on BatteryPin w/ 3V3 ref, 10bit res
+#elif A_RES == 12
+#define CutOFF 2153   //3V5 on BatteryPin w/ 3V3 ref, 12bit res
+#endif
+
 bool Switch = false;
 #define DelayTime  1000  //delay in micros
 uint32_t PastMicros = 0;
 
-#define dbDelay 100
+#define dbDelay 150
 bool ButtonState = false;
 byte ButtonReading = LOW;
 uint32_t PrevBounceMillis = 0;
-
-void setup() {
-  pinMode(14 ,OUTPUT);
-  pinMode(17 ,OUTPUT);
-  pinMode(18 ,OUTPUT);
-  pinMode(19 ,OUTPUT);
-  pinMode(12 ,OUTPUT);
-  pinMode(10 ,OUTPUT);
-  pinMode(6 ,OUTPUT);
-  pinMode(5 ,OUTPUT);
-  pinMode(21 ,OUTPUT);
-  pinMode(20 ,OUTPUT);
-
-  pinMode(ButtonPin, INPUT);
-  pinMode(SensorPin, INPUT);
-  pinMode(BatteryPin, INPUT);
-  pinMode(TestPin, OUTPUT);
-  pinMode(gLED, OUTPUT);
-  pinMode(rLED, OUTPUT);
-  digitalWrite(rLED, LOW);
-  analogReadResolution(12);
-  analogReference(AR_DEFAULT);
-  analogRead(SensorPin);
-
-  sd.begin(SD_CS);
-  SDCARD_SPI.beginTransaction(SPISettings(48000000, MSBFIRST, SPI_MODE0));
-  pinMode(SD_CS, OUTPUT);
-  digitalWrite(SD_CS, HIGH);
-
-  for (byte InitReading = 0; InitReading < n; InitReading++) {
-    readings[InitReading] = 0;
-  }
-}
-
-void BatteryMonitor() {
-  total -= readings[Pos];
-  readings[Pos] = analogRead(BatteryPin);
-  total += readings[Pos];
-  (Pos < n ? Pos++ : Pos = 0);  //(Condition ? true : false)
-  SMA = total / n;
-}
-
-void Error() {
-  digitalWrite(rLED, HIGH);
-  delayMicroseconds(200000);
-  digitalWrite(rLED, LOW);
-  delayMicroseconds(200000);
-  digitalWrite(rLED, HIGH);
-  delayMicroseconds(200000);
-  digitalWrite(rLED, LOW);
-}
 
 void Debounce() {
 
@@ -102,7 +59,17 @@ void Debounce() {
 void Open_or_Close () {
 
   if (!Switch) {
+    if (!digitalRead(CardDetect)) {
+      Error();
+      return;
+    }
+
     digitalWrite(gLED, HIGH);
+    sd.begin(SD_CS);
+    SDCARD_SPI.beginTransaction(SPISettings(48000000, MSBFIRST, SPI_MODE0));
+    pinMode(SD_CS, OUTPUT);
+    digitalWrite(SD_CS, HIGH);
+
     char DataFile[10];
     strcpy(DataFile, "file00.txt");
     for (byte i = 0; i < 100; i++) {
@@ -114,7 +81,6 @@ void Open_or_Close () {
     if (!ThisFile.is_open()) {
       ThisFile.close();
       Error();
-      return;
     }
     Switch = true;
     delayMicroseconds(300000);
@@ -129,6 +95,54 @@ void Open_or_Close () {
     delayMicroseconds(300000);
     digitalWrite(rLED, LOW);
     return;
+  }
+}
+
+void BatteryMonitor() {
+  total -= readings[Pos];
+  readings[Pos] = analogRead(BatteryPin);
+  total += readings[Pos];
+  (Pos < n ? Pos++ : Pos = 0);  //(Condition ? true : false)
+  SMA = total / n;
+}
+
+void Error() {
+  digitalWrite(7, LOW);
+  digitalWrite(rLED, HIGH);
+  delayMicroseconds(200000);
+  digitalWrite(rLED, LOW);
+  delayMicroseconds(200000);
+  digitalWrite(rLED, HIGH);
+  delayMicroseconds(200000);
+  digitalWrite(rLED, LOW);
+}
+
+void setup() {
+  pinMode(14 , OUTPUT);
+  pinMode(17 , OUTPUT);
+  pinMode(18 , OUTPUT);
+  pinMode(19 , OUTPUT);
+  pinMode(12 , OUTPUT);
+  pinMode(10 , OUTPUT);
+  pinMode(6 , OUTPUT);
+  pinMode(5 , OUTPUT);
+  pinMode(21 , OUTPUT);
+  pinMode(20 , OUTPUT);
+
+  pinMode(CardDetect, INPUT_PULLUP);
+  pinMode(ButtonPin, INPUT);
+  pinMode(SensorPin, INPUT);
+  pinMode(BatteryPin, INPUT);
+  pinMode(TestPin, OUTPUT);
+  pinMode(gLED, OUTPUT);
+  pinMode(rLED, OUTPUT);
+  digitalWrite(rLED, LOW);
+  analogReadResolution(A_RES);
+  analogReference(AR_DEFAULT);  //Default == operating voltage (3V3)
+  analogRead(SensorPin);
+
+  for (byte InitReading = 0; InitReading < n; InitReading++) {
+    readings[InitReading] = 0;
   }
 }
 
@@ -150,7 +164,7 @@ void loop() {
     if (micros() - PastMicros >= DelayTime) {
       PastMicros = micros();
       digitalWrite(TestPin, HIGH);
-      ThisFile << analogRead(SensorPin) << ',' << micros() << '\n';
+      ThisFile  << micros() << ',' << analogRead(SensorPin) << '\n';
       digitalWrite(TestPin, LOW);
     }
   }
