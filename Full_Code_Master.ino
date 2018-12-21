@@ -24,7 +24,7 @@ ofstream ThisFile;
 #define SD_CS 4
 #define CardDetect 7
 
-#define n 40                //n samples to average
+#define n 50                //n samples to average
 int readings[n];            //create moving average buffer
 byte Pos = 0;
 float total = 0;
@@ -81,7 +81,7 @@ void Open_or_Close () {     //Open or Close file action
       Error();                                                //-blink rLED twice
       return;                                                 //and return from function...
     }
-    
+
     digitalWrite(gLED, HIGH);
     //Initalize SD card and SPI
     sd.begin(SD_CS);
@@ -101,16 +101,17 @@ void Open_or_Close () {     //Open or Close file action
       ThisFile.close();
       Switch = false;
       Error();
+      return;
     }
     Switch = true;                                            //Turn Switch on
-    delayMicroseconds(300000);
+    delay(300);
     digitalWrite(gLED, LOW);
   }
   else {                                                      //If the switch was already on (data has been logging)
     digitalWrite(rLED, HIGH);
     ThisFile.close();                                         //Stop logging and the close the open File##
     Switch = false;                                           //Turn Switch off
-    delayMicroseconds(300000);
+    delay(200);
     digitalWrite(rLED, LOW);                                  //Blink red LED once
   }
 }
@@ -129,11 +130,12 @@ void BatteryMonitor() {     //Battery Monitoring action (Simple Moving Average)
 
 void Error() {              //Simple Error (Blink Red LED twice)
   digitalWrite(rLED, HIGH);
-  delayMicroseconds(200000);
+  delay(200);
+  digitalWrite(gLED, LOW);
   digitalWrite(rLED, LOW);
-  delayMicroseconds(200000);
+  delay(200);
   digitalWrite(rLED, HIGH);
-  delayMicroseconds(200000);
+  delay(200);
   digitalWrite(rLED, LOW);
 }
 
