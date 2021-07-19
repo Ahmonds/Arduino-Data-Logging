@@ -19,7 +19,7 @@ void SMA () {
   total -= readings[Pos];   //subtract old reading from total
   readings[Pos] = analogRead(SensorPin);;   //place new reading into the array
   total += readings[Pos];   //add the new reading to the total
-  (Pos < n ? Pos++ : Pos = 0);  //Incament Pos until the end is reached
+  (Pos < n-1 ? Pos++ : Pos = 0);  //Incament Pos until the end is reached
   average = total / n;   //take the current average
 }
 
