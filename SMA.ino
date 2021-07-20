@@ -1,33 +1,18 @@
-#define n  100
-#define SensorPin 15  //A1
 
-int readings[n];
-byte Pos = 0;
-float total = 0;
-float average = 0;
-
-void setup() {
-  while (!Serial) {}
-  Serial.begin(115200);
-
-  for (int thisReading = 0; thisReading < n; thisReading++) {
-    readings[thisReading] = 0;
+class SMA {
+  float readings[n], total = 0;
+  byte Pos = 0;
+  public :
+  float average (float reading) {
+    total -= readings[Pos];       //subtract old reading from total
+    readings[Pos] = reading;      //place new reading into the array
+    total += readings[Pos];       //add the new reading to the total
+    (Pos < n-1 ? Pos++ : Pos = 0);  //Incrament Pos until the end is reached
+    return total / n;             //take the current average
   }
-}
-
-void SMA () {
-  total -= readings[Pos];   //subtract old reading from total
-  readings[Pos] = analogRead(SensorPin);;   //place new reading into the array
-  total += readings[Pos];   //add the new reading to the total
-  (Pos < n-1 ? Pos++ : Pos = 0);  //Incament Pos until the end is reached
-  average = total / n;   //take the current average
-}
-
-void loop() {
-
-  SMA();    // Call to run the "Simple Moving Average" action
-
-  Serial.print(average);
-  Serial.print(" , ");
-  Serial.println(analogRead(SensorPin));
-}
+  SMA () {
+    for (byte t = 0; t < n; t++) {
+    readings[t] = 0;
+    }
+  }
+}objects;
